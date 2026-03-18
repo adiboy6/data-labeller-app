@@ -41,7 +41,7 @@ export default async function DashboardPage() {
   return (
     <DashboardShell>
       <DashboardHeader
-        heading={`Welcome to ChemBench, ${username} 🙌`}
+        heading={`Welcome to Openmosaics, ${username} 🙌`}
         text="Let's explore some chemistry questions together!"
       ></DashboardHeader>
       <div className="mx-auto p-6">

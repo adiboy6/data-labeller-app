@@ -1,8 +1,6 @@
-# ChemBench App
+# Openmosaics App
 
-LLMs gain importance across domains. To guide improvement, benchmarks have been developed. For this reason, we have been developing [ChemBench](https://github.com/lamalab-org/chem-bench).
-
-This web app aims to collect data from human experts to obtain a baseline for the performance of LLMs in chemistry. 
+This web app aims to collect data from human experts. 
 
 
 ## Our Stack

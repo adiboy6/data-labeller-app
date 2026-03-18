@@ -47,15 +47,6 @@ export default async function IndexPage() {
           >
             Follow along on Github 🚀
           </Link> */}
-          <p className="max-w-2xl leading-normal text-muted-foreground sm:text-xl sm:leading-8">
-            📝 Read the preprint on{" "}
-            <a
-              href="https://arxiv.org/abs/2404.01475"
-              className="underline underline-offset-4"
-            >
-              arXiv
-            </a>
-          </p>{" "}
           <h1 className="font-heading text-3xl sm:text-5xl md:text-6xl lg:text-7xl">
             Are you better in chemistry than AI?
           </h1>

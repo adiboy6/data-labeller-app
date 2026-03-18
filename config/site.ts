@@ -1,12 +1,11 @@
 import { SiteConfig } from "types"
 
 export const siteConfig: SiteConfig = {
-  name: "ChemBench",
-  description: "A benchmarking app for chemistry LLMs.",
-  url: "https://chembench.org",
+  name: "Openmosaics",
+  description: "A benchmarking platform for models.",
+  url: "https://openmosaics.com",
   ogImage: "https://avatars.githubusercontent.com/u/132576141?s=200&v=4",
   links: {
-    twitter: "https://twitter.com/jablonkagroup",
-    github: "https://github.com/lamalab-org",
+    github: "https://github.com",
   },
 }
