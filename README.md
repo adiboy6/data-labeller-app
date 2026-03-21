@@ -1,4 +1,4 @@
-# Openmosaics App
+# openmosaics data collection app:
 
 This web app aims to collect data from human experts. 
 

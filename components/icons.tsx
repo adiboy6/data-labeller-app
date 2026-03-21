@@ -4,6 +4,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Command,
   CreditCard,
   File,
@@ -11,6 +12,7 @@ import {
   HelpCircle,
   Image,
   Laptop,
+  Lightbulb,
   Loader2,
   LucideProps,
   Moon,
@@ -29,7 +31,10 @@ import {
   Info,
   Timer,
   Bug,
+  CheckCircle2,
+  RotateCcw,
   VenetianMask,
+  MessageSquare,
   type Icon as LucideIcon,
 } from "lucide-react"
 
@@ -82,6 +87,11 @@ export const Icons = {
   twitter: Twitter,
   check: Check,
   book: BookOpenCheck,
+  checkCircle: CheckCircle2,
+  clipboardCheck: ClipboardCheck,
+  lightbulb: Lightbulb,
+  reset: RotateCcw,
+  messageSquare: MessageSquare,
   google: ({ ...props }: LucideProps) => (
     <svg
       aria-hidden="true"

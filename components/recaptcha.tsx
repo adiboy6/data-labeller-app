@@ -1,11 +1,13 @@
 import React from 'react';
 import ReCAPTCHA from 'react-google-recaptcha';
-import { env } from "@/env.mjs"
+
+const RECAPTCHA_SITE_KEY =
+  process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
 
 interface ReCaptchaProps {
   onChange: (value: string | null) => void;
 }
 
 export const ReCaptcha: React.FC<ReCaptchaProps> = ({ onChange }) => {
-  return <ReCAPTCHA sitekey="6Lfbo1gpAAAAAPmu9GXYRr7Jf-XRrOBgra0E9CHU" onChange={onChange}/>;
+  return <ReCAPTCHA sitekey={RECAPTCHA_SITE_KEY} onChange={onChange}/>;
 };

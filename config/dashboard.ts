@@ -27,6 +27,11 @@ export const dashboardConfig: DashboardConfig = {
       icon: "post",
     },
     {
+      title: "Review",
+      href: "/dashboard/review",
+      icon: "clipboardCheck",
+    },
+    {
       title: "Question Bank",
       href: "/dashboard/questions",
       icon: "book",

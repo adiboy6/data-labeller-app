@@ -1,7 +1,7 @@
 import { SiteConfig } from "types"
 
 export const siteConfig: SiteConfig = {
-  name: "Openmosaics",
+  name: "openmosaics",
   description: "A benchmarking platform for models.",
   url: "https://openmosaics.com",
   ogImage: "https://avatars.githubusercontent.com/u/132576141?s=200&v=4",

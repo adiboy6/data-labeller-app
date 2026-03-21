@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function DashboardLoading() {
   return (
     <DashboardShell>
-      <DashboardHeader heading="Welcome to Openmosaics 🙌">
+      <DashboardHeader heading="Welcome to openmosaics 🙌">
         {/* <PostCreateButton /> */}
       </DashboardHeader>
       {/* <div className="divide-border-200 divide-y rounded-md border">
