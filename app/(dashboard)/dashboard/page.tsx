@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session"
 import { DashboardHeader } from "@/components/header"
 import { DashboardShell } from "@/components/shell"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Icons } from "@/components/icons"
 import { ReviewProgressCard } from "@/components/review/review-progress-card"
 
@@ -61,12 +61,13 @@ export default async function DashboardPage() {
         </ul>
       </div>
       <ReviewProgressCard username={username} />
-      <Button asChild size="sm" className="w-[200px]">
-        <Link href="/dashboard/review" className="flex">
-          Start Reviewing
-          <Icons.chevronRight className="ml-2 size-4" />
-        </Link>
-      </Button>
+      <Link
+        href="/dashboard/review"
+        className={buttonVariants({ size: "sm", className: "flex w-[200px]" })}
+      >
+        Start Reviewing
+        <Icons.chevronRight className="ml-2 size-4" />
+      </Link>
     </DashboardShell>
   )
 }

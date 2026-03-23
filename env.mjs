@@ -9,7 +9,10 @@ export const env = createEnv({
     // NEXTAUTH_SECRET: z.string().min(1),
     // GITHUB_CLIENT_ID: z.string().min(1),
     // GITHUB_CLIENT_SECRET: z.string().min(1),
-    // GITHUB_ACCESS_TOKEN: z.string().min(1),
+    GITHUB_ACCESS_TOKEN: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional()
+    ),
     // DATABASE_URL: z.string().min(1),
     // SMTP_FROM: z.string().min(1),
     // POSTMARK_API_TOKEN: z.string().min(1),

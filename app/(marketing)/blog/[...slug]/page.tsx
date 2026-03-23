@@ -127,13 +127,17 @@ export default async function PostPage({ params }: PostPageProps) {
                   href={`https://twitter.com/${author.twitter}`}
                   className="flex items-center space-x-2 text-sm"
                 >
-                  <Image
-                    src={author.avatar}
-                    alt={author.title}
-                    width={42}
-                    height={42}
-                    className="rounded-full bg-white"
-                  />
+                  {author.avatar ? (
+                    <Image
+                      src={author.avatar}
+                      alt={author.title}
+                      width={42}
+                      height={42}
+                      className="rounded-full bg-white"
+                    />
+                  ) : (
+                    <div className="size-[42px] rounded-full bg-muted" />
+                  )}
                   <div className="flex-1 text-left leading-tight">
                     <p className="font-medium">{author.title}</p>
                     <p className="text-[12px] text-muted-foreground">

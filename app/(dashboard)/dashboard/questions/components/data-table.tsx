@@ -40,7 +40,10 @@ export function DataTable<TData>({ table }: DataTableProps<TData>) {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} className="px-4 py-2 text-left font-medium">
+                  <th
+                    key={header.id}
+                    className="px-4 py-2 text-left font-medium"
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -93,40 +96,37 @@ export function DataTable<TData>({ table }: DataTableProps<TData>) {
             <Icons.chevronLeft className="size-4" />
           </Button>
 
-          <div
-            ref={dialRef}
-            className="flex items-center gap-1 px-1"
-          >
-            {pageCount > 1
-              ? Array.from({ length: pageCount }, (_, i) => {
-                  const distance = Math.abs(i - currentPage)
-                  const isActive = i === currentPage
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => table.setPageIndex(i)}
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-all duration-200 cursor-pointer select-none",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-muted"
-                      )}
-                      style={{
-                        opacity: isActive
-                          ? 1
-                          : Math.max(0.15, 1 - distance * 0.3),
-                        transform: isActive ? "scale(1.2)" : "scale(1)",
-                      }}
-                    >
-                      {i + 1}
-                    </button>
-                  )
-                })
-              : (
-                <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-                  1
-                </span>
-              )}
+          <div ref={dialRef} className="flex items-center gap-1 px-1">
+            {pageCount > 1 ? (
+              Array.from({ length: pageCount }, (_, i) => {
+                const distance = Math.abs(i - currentPage)
+                const isActive = i === currentPage
+                return (
+                  <button
+                    key={i}
+                    onClick={() => table.setPageIndex(i)}
+                    className={cn(
+                      "flex size-8 shrink-0 cursor-pointer select-none items-center justify-center rounded-full text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    )}
+                    style={{
+                      opacity: isActive
+                        ? 1
+                        : Math.max(0.15, 1 - distance * 0.3),
+                      transform: isActive ? "scale(1.2)" : "scale(1)",
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                )
+              })
+            ) : (
+              <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+                1
+              </span>
+            )}
           </div>
 
           <Button

@@ -16,12 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -216,9 +211,7 @@ export function ReviewPage() {
     for (const q of questions) {
       const state = latestStates[q.id]
       if (state) {
-        savePromises.push(
-          saveReviewToDb(q.id, state.status, state.comment)
-        )
+        savePromises.push(saveReviewToDb(q.id, state.status, state.comment))
       }
     }
 
@@ -296,66 +289,66 @@ export function ReviewPage() {
     <>
       <DashboardHeader heading="Review">
         <TooltipProvider delayDuration={300}>
-        <div className="flex items-center gap-1">
-          {allReviewed && (
+          <div className="flex items-center gap-1">
+            {allReviewed && (
+              <AlertDialog>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" className="size-9 p-0">
+                        <Icons.checkCircle className="size-5 text-emerald-500" />
+                        <span className="sr-only">Submit reviews</span>
+                      </Button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Submit all reviews</TooltipContent>
+                </Tooltip>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Submit all reviews?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You have reviewed all {total} questions. This will submit
+                      your approvals, rejections, and comments.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSubmit}>
+                      Submit
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <AlertDialog>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <AlertDialogTrigger asChild>
                     <Button variant="ghost" className="size-9 p-0">
-                      <Icons.checkCircle className="size-5 text-emerald-500" />
-                      <span className="sr-only">Submit reviews</span>
+                      <Icons.reset className="size-5 text-muted-foreground" />
+                      <span className="sr-only">Reset reviews</span>
                     </Button>
                   </AlertDialogTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Submit all reviews</TooltipContent>
+                <TooltipContent>Reset all reviews</TooltipContent>
               </Tooltip>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Submit all reviews?</AlertDialogTitle>
+                  <AlertDialogTitle>Reset all reviews?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    You have reviewed all {total} questions. This will submit
-                    your approvals, rejections, and comments.
+                    This will clear all your approvals, rejections, and
+                    comments. You will start the review from the beginning.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSubmit}>
-                    Submit
+                  <AlertDialogAction onClick={handleReset}>
+                    Reset
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
-          <AlertDialog>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" className="size-9 p-0">
-                    <Icons.reset className="size-5 text-muted-foreground" />
-                    <span className="sr-only">Reset reviews</span>
-                  </Button>
-                </AlertDialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Reset all reviews</TooltipContent>
-            </Tooltip>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Reset all reviews?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will clear all your approvals, rejections, and comments.
-                  You will start the review from the beginning.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleReset}>
-                  Reset
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+          </div>
         </TooltipProvider>
       </DashboardHeader>
 
@@ -370,7 +363,7 @@ export function ReviewPage() {
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Question</CardTitle>
-            <div className="text-lg text-muted-foreground text-justify">
+            <div className="text-justify text-lg text-muted-foreground">
               <LatexRenderer latexText={currentQuestion.question} />
             </div>
           </CardHeader>
@@ -400,14 +393,16 @@ export function ReviewPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <div className="h-[200px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed text-justify [scrollbar-width:none] hover:[scrollbar-width:thin] [&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
-                  {currentQuestion.answer}
+              <div className="h-[200px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-justify text-sm leading-relaxed [scrollbar-width:none] hover:[scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5">
+                {currentQuestion.answer}
               </div>
             </div>
 
             <div className="flex justify-center gap-3">
               <Button
-                variant={currentState.status === "approved" ? "default" : "outline"}
+                variant={
+                  currentState.status === "approved" ? "default" : "outline"
+                }
                 className={cn(
                   currentState.status === "approved"
                     ? "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -424,7 +419,9 @@ export function ReviewPage() {
                 {currentState.status === "approved" ? "Approved" : "Approve"}
               </Button>
               <Button
-                variant={currentState.status === "rejected" ? "default" : "outline"}
+                variant={
+                  currentState.status === "rejected" ? "default" : "outline"
+                }
                 className={cn(
                   currentState.status === "rejected"
                     ? "bg-red-600 text-white hover:bg-red-700"
@@ -447,12 +444,12 @@ export function ReviewPage() {
                 <Icons.messageSquare className="size-3.5" />
                 Comments
               </div>
-            <Textarea
-              placeholder="Additional comments..."
-              value={currentState.comment}
-              onChange={(e) => setComment(currentQuestion.id, e.target.value)}
-              className="min-h-[80px] resize-none"
-            />
+              <Textarea
+                placeholder="Additional comments..."
+                value={currentState.comment}
+                onChange={(e) => setComment(currentQuestion.id, e.target.value)}
+                className="min-h-[80px] resize-none"
+              />
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -465,10 +462,7 @@ export function ReviewPage() {
                 Previous
               </Button>
 
-              <div
-                ref={dialRef}
-                className="flex items-center gap-1 px-2"
-              >
+              <div ref={dialRef} className="flex items-center gap-1 px-2">
                 {Array.from({ length: total }, (_, i) => {
                   const distance = Math.abs(i - selectedIndex)
                   const isActive = i === selectedIndex
@@ -477,13 +471,15 @@ export function ReviewPage() {
                       key={i}
                       onClick={() => goTo(i)}
                       className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-all duration-200 cursor-pointer select-none",
+                        "flex size-8 shrink-0 cursor-pointer select-none items-center justify-center rounded-full text-sm font-medium transition-all duration-200",
                         isActive
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted"
                       )}
                       style={{
-                        opacity: isActive ? 1 : Math.max(0.15, 1 - distance * 0.3),
+                        opacity: isActive
+                          ? 1
+                          : Math.max(0.15, 1 - distance * 0.3),
                         transform: isActive ? "scale(1.2)" : "scale(1)",
                       }}
                     >
@@ -514,10 +510,8 @@ export function ReviewPage() {
           <ScrollArea className="mt-6 h-[calc(100vh-8rem)]">
             <div className="flex flex-col gap-6 pr-4">
               <div>
-                <h4 className="mb-2 text-sm font-semibold">
-                  Answer Reasoning
-                </h4>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground text-justify">
+                <h4 className="mb-2 text-sm font-semibold">Answer Reasoning</h4>
+                <p className="whitespace-pre-line text-justify text-sm leading-relaxed text-muted-foreground">
                   {currentQuestion.reasoning}
                 </p>
               </div>
@@ -525,7 +519,7 @@ export function ReviewPage() {
                 <h4 className="mb-2 text-sm font-semibold">
                   Evidence of Answer Generation
                 </h4>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground text-justify">
+                <p className="whitespace-pre-line text-justify text-sm leading-relaxed text-muted-foreground">
                   {currentQuestion.evidence}
                 </p>
               </div>
