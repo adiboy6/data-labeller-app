@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2015",
+    "target": "es2018",
     "downlevelIteration": true,
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -25,7 +25,8 @@
         "name": "next"
       }
     ],
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "next-env.d.ts",
