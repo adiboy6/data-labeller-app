@@ -21,14 +21,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { userInterestsFunctions } from "@/lib/interests"
+import { UserInterestsFunctions } from "@/components/user-name-form"
 import { Icons } from "./icons"
 import { toast } from "@/components/ui/use-toast"
 
 interface InterestsSelectorProps {
   options?: string[]
   selectedInterests?: string[]
-  userInterests: userInterestsFunctions
+  userInterests: UserInterestsFunctions
 }
 
 function NewInterestButton({
@@ -37,7 +37,7 @@ function NewInterestButton({
   addInterest,
 }: {
   interest: string
-  userInterests: userInterestsFunctions
+  userInterests: UserInterestsFunctions
   addInterest: (value: string) => Promise<void>
 }) {
   const [saving, setSaving] = useState(false)

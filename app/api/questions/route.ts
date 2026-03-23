@@ -1,57 +1,47 @@
-import { questionSchema } from "@/lib/validations/questions"
+import { getServerSession } from "next-auth/next"
 import { z } from "zod"
-import { NextResponse, NextRequest } from "next/server"
+
+import { authOptions, authorizeAdmin } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { authorize, authorizeAdmin } from "@/lib/auth"
 
-export async function GET(req: NextRequest, res: NextResponse) {
+export async function GET() {
   try {
-    if (!(await authorize(req))) {
-      return new Response(null, { status: 403 })
-    }
-    const page = req.nextUrl.searchParams.get("page") || 1
-    const size = req.nextUrl.searchParams.get("size") || 10
-
     const questions = await db.question.findMany({
-      take: Number(size),
-      skip: (Number(page) - 1) * Number(size),
+      include: { citation: true },
+      orderBy: { createdAt: "asc" },
     })
 
-    return NextResponse.json(questions)
+    return new Response(JSON.stringify(questions), {
+      headers: { "Content-Type": "application/json" },
+    })
   } catch (error) {
-    console.log(error.message)
-    return new NextResponse(null, { status: 500 })
+    return new Response(null, { status: 500 })
   }
 }
 
-export async function POST(req: Request, res: Response) {
+const createQuestionSchema = z.object({
+  question: z.string().min(1),
+  answer: z.string().min(1),
+  evidence: z.string().min(1),
+  reasoning: z.string().min(1),
+  citationId: z.string().optional(),
+})
+
+export async function POST(req: Request) {
   try {
     if (!(await authorizeAdmin(req))) {
       return new Response(null, { status: 403 })
     }
+
     const body = await req.json()
-    const data = questionSchema.parse(body)
-    console.log(data)
+    const data = createQuestionSchema.parse(body)
 
-    const questions = data.examples.map((example) => {
-      return {
-        name: data.name,
-        keywords: data.keywords.join(","),
-        description: data.description || " ",
-        preferred_score: data.preferred_score,
-        type:
-          data.preferred_score === "multiple_choice_grade" ? "choice" : "text",
-        example: example,
-        raw: data,
-        toolUseAllowed: data.toolUseAllowed,
-      }
+    const question = await db.question.create({ data })
+
+    return new Response(JSON.stringify(question), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
     })
-
-    await db.question.createMany({
-      data: questions as any,
-    })
-
-    return NextResponse.json(data)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return new Response(JSON.stringify(error.issues), { status: 422 })
@@ -59,5 +49,3 @@ export async function POST(req: Request, res: Response) {
     return new Response(null, { status: 500 })
   }
 }
-
-export async function PATCH(req: Request) {}

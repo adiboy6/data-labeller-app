@@ -9,30 +9,34 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { mockReviewQuestions } from "@/components/review/mock-data"
-
-const STORAGE_KEY = "review-states"
 
 export function ReviewProgressCard({ username }: { username: string }) {
-  const total = mockReviewQuestions.length
+  const [total, setTotal] = React.useState(0)
   const [reviewedCount, setReviewedCount] = React.useState(0)
 
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const states = JSON.parse(raw) as Record<
-          string,
-          { status: string; comment: string }
-        >
-        const count = Object.values(states).filter(
-          (s) => s.status !== "pending"
-        ).length
-        setReviewedCount(count)
+    async function load() {
+      try {
+        const [questionsRes, reviewsRes] = await Promise.all([
+          fetch("/api/questions", { credentials: "same-origin" }),
+          fetch("/api/reviews", { credentials: "same-origin" }),
+        ])
+
+        const questions: Array<{ id: string }> = await questionsRes.json()
+        const reviews: Array<{ response: string }> = reviewsRes.ok
+          ? await reviewsRes.json()
+          : []
+
+        setTotal(questions.length)
+        setReviewedCount(
+          reviews.filter((r) => r.response !== "pending").length
+        )
+      } catch {
+        // silently fail — card just shows 0/0
       }
-    } catch {
-      // ignore parse errors
     }
+
+    load()
   }, [])
 
   const progress = total > 0 ? (100 * reviewedCount) / total : 0
@@ -42,9 +46,9 @@ export function ReviewProgressCard({ username }: { username: string }) {
       <CardHeader>
         <CardTitle>Your Progress</CardTitle>
         <div className="text-sm text-muted-foreground">
-          {reviewedCount === total ? (
+          {reviewedCount === total && total > 0 ? (
             <span>
-              Congratulations on completing the review, {username}! 🚀
+              Congratulations on completing the review, {username}!
             </span>
           ) : (
             <span>

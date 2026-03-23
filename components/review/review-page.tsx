@@ -42,113 +42,197 @@ import { DashboardHeader } from "@/components/header"
 import { LatexRenderer } from "@/components/markdown-renderer"
 import { toast } from "@/components/ui/use-toast"
 
-import {
-  mockReviewQuestions,
-  type ReviewQuestion,
-} from "@/components/review/mock-data"
+export type ReviewStatus = "pending" | "approved" | "rejected"
 
-type ReviewStatus = ReviewQuestion["status"]
+export interface ReviewQuestion {
+  id: string
+  question: string
+  answer: string
+  reasoning: string
+  evidence: string
+  citationId: string | null
+}
 
 interface QuestionReviewState {
   status: ReviewStatus
   comment: string
 }
 
-function buildInitialStates(allPending = false) {
-  const initial: Record<number, QuestionReviewState> = {}
-  for (const q of mockReviewQuestions) {
-    initial[q.id] = { status: allPending ? "pending" : q.status, comment: "" }
-  }
-  return initial
-}
-
-const STORAGE_KEY = "review-states"
-
-function loadSavedStates(): Record<number, QuestionReviewState> | null {
-  if (typeof window === "undefined") return null
+async function saveReviewToDb(
+  questionId: string,
+  response: ReviewStatus,
+  comments?: string
+): Promise<boolean> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-function saveStates(states: Record<number, QuestionReviewState>) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(states))
-  } catch {
-    // storage full or unavailable
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ questionId, response, comments: comments || "" }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error("Failed to save review:", res.status, body)
+      try {
+        const parsed = JSON.parse(body)
+        if (parsed?.error) {
+          toast({ title: parsed.error, variant: "destructive" })
+        }
+      } catch {}
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error("Failed to save review:", err)
+    return false
   }
 }
 
 export function ReviewPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const total = mockReviewQuestions.length
 
-  const initialIndex = React.useMemo(() => {
-    const qParam = searchParams?.get("q")
-    if (qParam) {
-      const idx = mockReviewQuestions.findIndex((q) => String(q.id) === qParam)
-      if (idx >= 0) return idx
-    }
-    return 0
-  }, [searchParams])
+  const [questions, setQuestions] = React.useState<ReviewQuestion[]>([])
+  const [loading, setLoading] = React.useState(true)
 
-  const [selectedIndex, setSelectedIndex] = React.useState(initialIndex)
+  const [selectedIndex, setSelectedIndex] = React.useState(0)
   const [reasoningOpen, setReasoningOpen] = React.useState(false)
   const [reviewStates, setReviewStates] = React.useState<
-    Record<number, QuestionReviewState>
-  >(buildInitialStates)
-  const [hydrated, setHydrated] = React.useState(false)
+    Record<string, QuestionReviewState>
+  >({})
 
   React.useEffect(() => {
-    const saved = loadSavedStates()
-    if (saved) setReviewStates(saved)
-    setHydrated(true)
-  }, [])
+    async function load() {
+      try {
+        const [questionsRes, reviewsRes] = await Promise.all([
+          fetch("/api/questions", { credentials: "same-origin" }),
+          fetch("/api/reviews", { credentials: "same-origin" }),
+        ])
 
-  const currentQuestion = mockReviewQuestions[selectedIndex]
-  const currentState = reviewStates[currentQuestion.id]
+        const questionsData: ReviewQuestion[] = await questionsRes.json()
+        const reviewsData: Array<{
+          questionId: string
+          response: string
+          comments: string | null
+        }> = reviewsRes.ok ? await reviewsRes.json() : []
+
+        setQuestions(questionsData)
+
+        const states: Record<string, QuestionReviewState> = {}
+        for (const q of questionsData) {
+          const existing = reviewsData.find((r) => r.questionId === q.id)
+          states[q.id] = {
+            status: (existing?.response as ReviewStatus) || "pending",
+            comment: existing?.comments || "",
+          }
+        }
+        setReviewStates(states)
+
+        const qParam = searchParams?.get("q")
+        if (qParam) {
+          const idx = questionsData.findIndex((q) => q.id === qParam)
+          if (idx >= 0) setSelectedIndex(idx)
+        }
+      } catch (err) {
+        toast({
+          title: "Failed to load questions",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [searchParams])
+
+  const total = questions.length
+  const currentQuestion = questions[selectedIndex]
+  const currentState = currentQuestion
+    ? reviewStates[currentQuestion.id]
+    : undefined
+
+  const reviewStatesRef = React.useRef(reviewStates)
+  React.useEffect(() => {
+    reviewStatesRef.current = reviewStates
+  }, [reviewStates])
 
   const reviewedCount = Object.values(reviewStates).filter(
     (s) => s.status !== "pending"
   ).length
-  const allReviewed = reviewedCount === total
+  const allReviewed = total > 0 && reviewedCount === total
   const progress = total > 0 ? (100 * reviewedCount) / total : 0
 
-  React.useEffect(() => {
-    if (hydrated) saveStates(reviewStates)
-  }, [reviewStates, hydrated])
-
-  function setStatus(id: number, status: ReviewStatus) {
+  function setStatus(id: string, status: ReviewStatus) {
     setReviewStates((prev) => ({
       ...prev,
       [id]: { ...prev[id], status },
     }))
+    const comment = reviewStatesRef.current[id]?.comment || ""
+    saveReviewToDb(id, status, comment).then((ok) => {
+      if (!ok) {
+        toast({ title: "Failed to save review", variant: "destructive" })
+      }
+    })
   }
 
-  function setComment(id: number, comment: string) {
+  const commentTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
+
+  function setComment(id: string, comment: string) {
     setReviewStates((prev) => ({
       ...prev,
       [id]: { ...prev[id], comment },
     }))
+
+    if (commentTimerRef.current) clearTimeout(commentTimerRef.current)
+    commentTimerRef.current = setTimeout(() => {
+      const latestState = reviewStatesRef.current[id]
+      saveReviewToDb(id, latestState?.status || "pending", comment)
+    }, 800)
   }
 
   function handleReset() {
-    const fresh = buildInitialStates(true)
+    const fresh: Record<string, QuestionReviewState> = {}
+    const savePromises: Promise<boolean>[] = []
+    for (const q of questions) {
+      fresh[q.id] = { status: "pending", comment: "" }
+      savePromises.push(saveReviewToDb(q.id, "pending", ""))
+    }
     setReviewStates(fresh)
-    saveStates(fresh)
     setSelectedIndex(0)
     setReasoningOpen(false)
-    toast({ description: "All reviews have been reset." })
+    Promise.all(savePromises).then((results) => {
+      if (results.every(Boolean)) {
+        toast({ description: "All reviews have been reset." })
+      } else {
+        toast({ title: "Some resets failed", variant: "destructive" })
+      }
+    })
   }
 
-  function handleSubmit() {
-    toast({ description: "Reviews submitted successfully!" })
-    router.push("/dashboard")
+  async function handleSubmit() {
+    const savePromises: Promise<boolean>[] = []
+    const latestStates = reviewStatesRef.current
+    for (const q of questions) {
+      const state = latestStates[q.id]
+      if (state) {
+        savePromises.push(
+          saveReviewToDb(q.id, state.status, state.comment)
+        )
+      }
+    }
+
+    const results = await Promise.all(savePromises)
+    if (results.every(Boolean)) {
+      toast({ description: "Reviews submitted successfully!" })
+      router.push("/dashboard")
+    } else {
+      toast({
+        title: "Some reviews failed to save",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   function goTo(index: number) {
@@ -185,6 +269,28 @@ export function ReviewPage() {
     el.addEventListener("wheel", handleWheel, { passive: false })
     return () => el.removeEventListener("wheel", handleWheel)
   }, [total])
+
+  if (loading) {
+    return (
+      <>
+        <DashboardHeader heading="Review" />
+        <div className="flex items-center justify-center py-20">
+          <Icons.spinner className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      </>
+    )
+  }
+
+  if (!currentQuestion || !currentState) {
+    return (
+      <>
+        <DashboardHeader heading="Review" />
+        <p className="py-10 text-center text-muted-foreground">
+          No questions available.
+        </p>
+      </>
+    )
+  }
 
   return (
     <>
@@ -270,7 +376,6 @@ export function ReviewPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Answer display (read-only) */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-medium">Answer</p>
@@ -296,11 +401,10 @@ export function ReviewPage() {
                 </TooltipProvider>
               </div>
               <div className="h-[200px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed text-justify [scrollbar-width:none] hover:[scrollbar-width:thin] [&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
-                {currentQuestion.answer}
+                  {currentQuestion.answer}
               </div>
             </div>
 
-            {/* Approve / Reject */}
             <div className="flex justify-center gap-3">
               <Button
                 variant={currentState.status === "approved" ? "default" : "outline"}
@@ -338,7 +442,6 @@ export function ReviewPage() {
               </Button>
             </div>
 
-            {/* Additional comments */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-sm font-medium">
                 <Icons.messageSquare className="size-3.5" />
@@ -352,7 +455,6 @@ export function ReviewPage() {
             />
             </div>
 
-            {/* Navigation */}
             <div className="flex items-center justify-between pt-2">
               <Button
                 variant="outline"
@@ -404,7 +506,6 @@ export function ReviewPage() {
         </Card>
       </div>
 
-      {/* Explanation Sheet (right overlay) */}
       <Sheet open={reasoningOpen} onOpenChange={setReasoningOpen}>
         <SheetContent position="right" size="lg">
           <SheetHeader>

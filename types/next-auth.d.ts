@@ -1,6 +1,5 @@
 import { User } from "next-auth"
 import { JWT } from "next-auth/jwt"
-import { Interest } from "@prisma/client"
 
 type UserId = string
 
@@ -15,9 +14,9 @@ declare module "next-auth" {
     user: User & {
       id: UserId
       highestEducation?: string
-      interests?: Interest[]
+      interests?: string[]
       experience?: number
-      type: String | null
+      type: string | null
     }
   }
 }

@@ -26,26 +26,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  mockReviewQuestions,
-  type ReviewQuestion,
-} from "@/components/review/mock-data"
 import { Icons } from "@/components/icons"
 import Link from "next/link"
 
-type ReviewStatus = "approved" | "rejected" | "pending"
-
-const REVIEW_STORAGE_KEY = "review-states"
-
-function loadReviewStates(): Record<string, { status: ReviewStatus; comment: string }> {
-  if (typeof window === "undefined") return {}
-  try {
-    const raw = localStorage.getItem(REVIEW_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
+import type { ReviewQuestion, ReviewStatus } from "@/components/review/review-page"
 
 function StatusBadge({ status }: { status: ReviewStatus }) {
   return (
@@ -75,7 +59,7 @@ function buildColumns(
           href={`/dashboard/review?q=${row.original.id}`}
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          {row.original.id}
+          {row.index + 1}
         </Link>
       ),
     },
@@ -90,7 +74,7 @@ function buildColumns(
       id: "status",
       header: "Status",
       cell: ({ row }) => {
-        const reviewState = reviewStates[String(row.original.id)]
+        const reviewState = reviewStates[row.original.id]
         const status: ReviewStatus = reviewState?.status ?? "pending"
         const comment = reviewState?.comment ?? ""
         return (
@@ -113,7 +97,7 @@ function buildColumns(
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>
-                      Comment — Question {row.original.id}
+                      Comment — Question {row.index + 1}
                     </DialogTitle>
                   </DialogHeader>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
@@ -161,31 +145,72 @@ function QuestionsTable({
 }
 
 export function QuestionsDataTable() {
+  const [questions, setQuestions] = useState<ReviewQuestion[]>([])
   const [reviewStates, setReviewStates] = useState<
     Record<string, { status: ReviewStatus; comment: string }>
   >({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setReviewStates(loadReviewStates())
+    async function load() {
+      try {
+        const [questionsRes, reviewsRes] = await Promise.all([
+          fetch("/api/questions", { credentials: "same-origin" }),
+          fetch("/api/reviews", { credentials: "same-origin" }),
+        ])
+
+        const questionsData: ReviewQuestion[] = await questionsRes.json()
+        const reviewsData: Array<{
+          questionId: string
+          response: string
+          comments: string | null
+        }> = reviewsRes.ok ? await reviewsRes.json() : []
+
+        setQuestions(questionsData)
+
+        const states: Record<string, { status: ReviewStatus; comment: string }> = {}
+        for (const q of questionsData) {
+          const existing = reviewsData.find((r) => r.questionId === q.id)
+          states[q.id] = {
+            status: (existing?.response as ReviewStatus) || "pending",
+            comment: existing?.comments || "",
+          }
+        }
+        setReviewStates(states)
+      } catch {
+        // fail silently
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
   }, [])
 
-  const allQuestions = mockReviewQuestions
-  const total = allQuestions.length
+  const total = questions.length
 
-  const getStatus = (id: number): ReviewStatus =>
-    reviewStates[String(id)]?.status ?? "pending"
+  const getStatus = (id: string): ReviewStatus =>
+    reviewStates[id]?.status ?? "pending"
 
   const pending = useMemo(
-    () => allQuestions.filter((q) => getStatus(q.id) === "pending"),
-    [reviewStates]
+    () => questions.filter((q) => getStatus(q.id) === "pending"),
+    [questions, reviewStates]
   )
   const reviewed = useMemo(
-    () => allQuestions.filter((q) => getStatus(q.id) !== "pending"),
-    [reviewStates]
+    () => questions.filter((q) => getStatus(q.id) !== "pending"),
+    [questions, reviewStates]
   )
 
   const reviewedCount = reviewed.length
   const progress = total > 0 ? (100 * reviewedCount) / total : 0
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Icons.spinner className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <>
@@ -197,7 +222,7 @@ export function QuestionsDataTable() {
           <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <QuestionsTable data={allQuestions} reviewStates={reviewStates} />
+          <QuestionsTable data={questions} reviewStates={reviewStates} />
         </TabsContent>
         <TabsContent value="pending">
           <QuestionsTable data={pending} reviewStates={reviewStates} />

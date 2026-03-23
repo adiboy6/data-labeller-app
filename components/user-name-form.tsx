@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/tooltip"
 import { InterestsSelector } from "@/components/interests-selector"
 import { useState, useMemo } from "react"
-import { userInterestsFunctions } from "@/lib/interests"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +40,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { StartAnsweringButton } from "@/components/question-operations"
+
+export type UserInterestsFunctions = {
+  clear: () => void
+  add: (value: string) => void
+  delete: (value: string) => void
+  get: () => Set<string>
+}
 
 interface UserNameFormProps extends React.HTMLAttributes<HTMLFormElement> {
   user: Pick<
@@ -91,7 +96,7 @@ export function UserNameForm({
 
   const useInterests = (
     selectedInterests: string[]
-  ): userInterestsFunctions => {
+  ): UserInterestsFunctions => {
     const [selectedValues, setSelectedValues] = useState<Set<string>>(
       new Set(selectedInterests)
     )
@@ -338,10 +343,6 @@ export function UserNameForm({
             )}
             <span>Save</span>
           </button>
-          <StartAnsweringButton
-            userId={user.id}
-            disabled={!isFormComplete || !isValid}
-          />
         </CardFooter>
       </Card>
     </form>
