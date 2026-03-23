@@ -41,6 +41,6 @@ next-env.d.ts
 
 *.sql
 pscale_dump_chembench_main_20240418_174855
-.pnpm-lock.yaml
 /.pnpm-store/**
 /.husky/*
+pnpm-lock.yaml
