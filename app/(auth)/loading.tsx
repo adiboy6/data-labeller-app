@@ -57,7 +57,7 @@ export default function RegisterPage() {
             >
               Privacy Policy
             </Link>
-              {" "} Please also read our {" "} <Link   href="https://cloud.uni-jena.de/s/j37CLLXEMyS4caZ"
+              {" "} Please also read our {" "} <Link   href="/study-information"
               className="hover:text-brand underline underline-offset-4">Study information document.</Link>
           </p>
         </div>

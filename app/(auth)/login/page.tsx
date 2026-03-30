@@ -264,7 +264,7 @@ export default function AnonymousLoginPage() {
             </Link>
             {" "}and the{" "}
             <Link
-              href="https://cloud.uni-jena.de/s/j37CLLXEMyS4caZ"
+              href="/study-information"
               className="hover:text-brand underline underline-offset-4"
             >
               Study information document.

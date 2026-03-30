@@ -42,10 +42,67 @@ export type ReviewStatus = "pending" | "approved" | "rejected"
 export interface ReviewQuestion {
   id: string
   question: string
+  category: string | null
   answer: string
   reasoning: string
   evidence: string
   citationId: string | null
+}
+
+const CATEGORY_BADGE_PALETTE = [
+  "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
+  "bg-sky-500/15 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200",
+  "bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
+  "bg-violet-500/15 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200",
+  "bg-rose-500/15 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200",
+  "bg-indigo-500/15 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200",
+]
+
+function hashString(input: string) {
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i)
+    hash |= 0 // force 32-bit
+  }
+  return Math.abs(hash)
+}
+
+function getCategoryBadgeClassName(category: string | null | undefined) {
+  const normalized = (category || "Uncategorized").trim()
+
+  // Keep explicit mappings for the known set, then fall back to palette hashing.
+  const explicit: Record<string, string> = {
+    Mechanism:
+      "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
+    DFT: "bg-sky-500/15 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200",
+    "Screening ML":
+      "bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
+    Interpretability:
+      "bg-violet-500/15 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200",
+    Experiment:
+      "bg-rose-500/15 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200",
+  }
+
+  const explicitMatch = explicit[normalized]
+  if (explicitMatch) return explicitMatch
+
+  const idx = hashString(normalized) % CATEGORY_BADGE_PALETTE.length
+  return CATEGORY_BADGE_PALETTE[idx]
+}
+
+function CategoryBadge({ category }: { category: string | null | undefined }) {
+  const normalized = (category || "Uncategorized").trim()
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wide",
+        getCategoryBadgeClassName(normalized)
+      )}
+      title={normalized}
+    >
+      {normalized}
+    </span>
+  )
 }
 
 interface QuestionReviewState {
@@ -362,7 +419,10 @@ export function ReviewPage() {
       <div className="grid gap-8">
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Question</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Question</CardTitle>
+              <CategoryBadge category={currentQuestion?.category} />
+            </div>
             <div className="text-justify text-lg text-muted-foreground">
               <LatexRenderer latexText={currentQuestion.question} />
             </div>
@@ -378,18 +438,18 @@ export function ReviewPage() {
                       <Button
                         variant="ghost"
                         className={cn(
-                          "size-8 shrink-0 rounded-full p-0",
+                          "flex h-10 items-center gap-2 rounded-full px-3",
                           reasoningOpen
                             ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 hover:text-amber-300"
                             : "text-muted-foreground"
                         )}
                         onClick={() => setReasoningOpen((o) => !o)}
                       >
+                        <span className="text-sm font-medium">Show Explanation</span>
                         <Icons.lightbulb className="size-4" />
-                        <span className="sr-only">Toggle explanation</span>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Show explanation</TooltipContent>
+                    <TooltipContent>Show Explanation</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>

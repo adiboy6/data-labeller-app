@@ -69,7 +69,7 @@ model VerificationToken {
 
 model Citation {
   id        String     @id @default(cuid())
-  url       String
+  url       String     @unique
   label     String
   questions Question[]
   createdAt DateTime   @default(now()) @map("created_at")
@@ -79,10 +79,11 @@ model Citation {
 
 model Question {
   id            String         @id @default(cuid())
-  question      String
+  question      String         @unique
   answer        String
   evidence      String
   reasoning     String
+  category      String?
   citationId    String?
   citation      Citation?      @relation(fields: [citationId], references: [id])
   userResponses UserResponse[]
