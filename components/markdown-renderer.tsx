@@ -94,11 +94,13 @@ export function LatexRenderer({ latexText }) {
   const smilesRegex = /\[START_SMILES\](.*?)\[END_SMILES\]/gs
   const parts = formattedString.split(smilesRegex)
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-2 [overflow-wrap:anywhere]">
       {parts.map((part, index) => {
         if (index % 2 === 0) {
           return part ? (
-            <span key={index}>{renderMathJax({ latexText: part })}</span>
+            <span key={index} className="min-w-0 max-w-full break-words">
+              {renderMathJax({ latexText: part })}
+            </span>
           ) : null
         } else {
           return <SmilesRendererSingle key={index} smiles={part} />

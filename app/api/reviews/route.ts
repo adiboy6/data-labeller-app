@@ -2,7 +2,18 @@ import { getServerSession } from "next-auth/next"
 import { z } from "zod"
 
 import { authOptions } from "@/lib/auth"
+import { decodeUnicodeEscapes } from "@/lib/decode-unicode-escapes"
 import { db } from "@/lib/db"
+
+function decodeReviewPayload<
+  T extends { comments: string | null },
+>(row: T): T {
+  return {
+    ...row,
+    comments:
+      row.comments != null ? decodeUnicodeEscapes(row.comments) : null,
+  }
+}
 
 export async function GET(req: Request) {
   try {
@@ -28,7 +39,9 @@ export async function GET(req: Request) {
       where: { userId },
     })
 
-    return new Response(JSON.stringify(reviews), {
+    const payload = reviews.map((r) => decodeReviewPayload(r))
+
+    return new Response(JSON.stringify(payload), {
       headers: { "Content-Type": "application/json" },
     })
   } catch (error) {
@@ -91,7 +104,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return new Response(JSON.stringify(review), {
+    return new Response(JSON.stringify(decodeReviewPayload(review)), {
       headers: { "Content-Type": "application/json" },
     })
   } catch (error) {

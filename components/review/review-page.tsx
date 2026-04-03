@@ -20,6 +20,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -47,6 +52,12 @@ export interface ReviewQuestion {
   reasoning: string
   evidence: string
   citationId: string | null
+  citation?: {
+    id: string
+    url: string
+    label: string
+    sourceMetadata: unknown | null
+  } | null
 }
 
 const CATEGORY_BADGE_PALETTE = [
@@ -88,6 +99,134 @@ function getCategoryBadgeClassName(category: string | null | undefined) {
 
   const idx = hashString(normalized) % CATEGORY_BADGE_PALETTE.length
   return CATEGORY_BADGE_PALETTE[idx]
+}
+
+function formatSourceMetadata(metadata: unknown): string {
+  if (metadata == null) return ""
+  if (typeof metadata === "string") return metadata
+  try {
+    return JSON.stringify(metadata, null, 2)
+  } catch {
+    return String(metadata)
+  }
+}
+
+function humanizeMetadataKey(key: string): string {
+  return key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
+}
+
+function extractBibliographic(
+  metadata: unknown
+): Record<string, unknown> | null {
+  if (metadata == null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null
+  }
+  const m = metadata as Record<string, unknown>
+  const bib = m.bibliographic
+  if (bib != null && typeof bib === "object" && !Array.isArray(bib)) {
+    return bib as Record<string, unknown>
+  }
+  return null
+}
+
+const BIBLIOGRAPHIC_FIELD_ORDER = [
+  "title",
+  "authors",
+  "published_date",
+]
+
+function sortBibliographicEntries(
+  entries: [string, unknown][]
+): [string, unknown][] {
+  return [...entries].sort((a, b) => {
+    const ia = BIBLIOGRAPHIC_FIELD_ORDER.indexOf(a[0])
+    const ib = BIBLIOGRAPHIC_FIELD_ORDER.indexOf(b[0])
+    const ra = ia === -1 ? 1000 : ia
+    const rb = ib === -1 ? 1000 : ib
+    if (ra !== rb) return ra - rb
+    return a[0].localeCompare(b[0])
+  })
+}
+
+function hasBibliographicRows(metadata: unknown): boolean {
+  const bib = extractBibliographic(metadata)
+  if (!bib) return false
+  return Object.entries(bib).some(
+    ([, v]) =>
+      v != null && v !== "" && !(Array.isArray(v) && v.length === 0)
+  )
+}
+
+function formatBibliographicValue(value: unknown): React.ReactNode {
+  if (value == null || value === "") return "—"
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "number") return String(value)
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—"
+    if (value.every((v) => typeof v === "string")) {
+      return value.join(", ")
+    }
+    return value.map((item, i) => (
+      <span key={i}>
+        {i > 0 ? "; " : null}
+        {typeof item === "object" && item !== null
+          ? JSON.stringify(item)
+          : String(item)}
+      </span>
+    ))
+  }
+  if (typeof value === "object") {
+    return (
+      <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    )
+  }
+  return String(value)
+}
+
+function BibliographicMetadataView({ metadata }: { metadata: unknown }) {
+  const bib = extractBibliographic(metadata)
+  const entries =
+    bib != null
+      ? sortBibliographicEntries(
+          Object.entries(bib).filter(
+            ([k, v]) =>
+              BIBLIOGRAPHIC_FIELD_ORDER.includes(k) &&
+              v != null && v !== "" && !(Array.isArray(v) && v.length === 0)
+          )
+        )
+      : []
+
+  if (entries.length > 0) {
+    return (
+      <dl className="space-y-2.5">
+        {entries.map(([key, value]) => (
+          <div
+            key={key}
+            className="grid gap-0.5 text-[11px] leading-snug sm:grid-cols-[minmax(0,7.5rem)_1fr] sm:gap-x-3 sm:gap-y-0"
+          >
+            <dt className="font-medium text-foreground">
+              {humanizeMetadataKey(key)}
+            </dt>
+            <dd className="min-w-0 break-words text-muted-foreground">
+              {formatBibliographicValue(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+
+  return (
+    <pre className="max-h-64 max-w-[min(100vw-2rem,28rem)] overflow-auto whitespace-pre-wrap break-words text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
+      {formatSourceMetadata(metadata)}
+    </pre>
+  )
 }
 
 function CategoryBadge({ category }: { category: string | null | undefined }) {
@@ -157,7 +296,10 @@ export function ReviewPage() {
     async function load() {
       try {
         const [questionsRes, reviewsRes] = await Promise.all([
-          fetch("/api/questions", { credentials: "same-origin" }),
+          fetch("/api/questions", {
+            credentials: "same-origin",
+            cache: "no-store",
+          }),
           fetch("/api/reviews", { credentials: "same-origin" }),
         ])
 
@@ -301,6 +443,15 @@ export function ReviewPage() {
   }
 
   const dialRef = React.useRef<HTMLDivElement>(null)
+  const activeDialButtonRef = React.useRef<HTMLButtonElement | null>(null)
+
+  React.useEffect(() => {
+    activeDialButtonRef.current?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    })
+  }, [selectedIndex])
 
   React.useEffect(() => {
     const el = dialRef.current
@@ -416,14 +567,67 @@ export function ReviewPage() {
         </span>
       </div>
 
-      <div className="grid gap-8">
-        <Card className="w-full">
+      <div className="grid min-w-0 gap-8">
+        <Card className="w-full min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Question</CardTitle>
+              <div className="flex min-w-0 items-center gap-2">
+                <CardTitle>Question</CardTitle>
+                {currentQuestion.citation && (
+                  <HoverCard openDelay={200} closeDelay={100}>
+                    <HoverCardTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Citation source metadata"
+                      >
+                        <Icons.alertCircle className="size-4" />
+                      </button>
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      align="start"
+                      className="w-auto max-w-md border bg-popover p-0"
+                    >
+                      <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                        Source metadata
+                      </div>
+                      <div className="space-y-2 p-3 text-xs text-muted-foreground">
+                        <p className="break-all leading-relaxed">
+                          <span className="font-medium text-foreground">
+                            Source:
+                          </span>{" "}
+                          {currentQuestion.citation.label ||
+                            currentQuestion.citation.url}
+                        </p>
+                        {currentQuestion.citation.sourceMetadata != null ? (
+                          <div className="space-y-2 border-t border-border/60 pt-2">
+                            <p className="text-[11px] font-semibold text-foreground">
+                              {hasBibliographicRows(
+                                currentQuestion.citation.sourceMetadata
+                              )
+                                ? "Bibliographic"
+                                : "Metadata"}
+                            </p>
+                            <BibliographicMetadataView
+                              metadata={
+                                currentQuestion.citation.sourceMetadata
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <p className="italic leading-relaxed">
+                            No bibliographic metadata is stored for this
+                            citation yet.
+                          </p>
+                        )}
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                )}
+              </div>
               <CategoryBadge category={currentQuestion?.category} />
             </div>
-            <div className="text-justify text-lg text-muted-foreground">
+            <div className="min-w-0 max-w-full break-words text-justify text-lg text-muted-foreground">
               <LatexRenderer latexText={currentQuestion.question} />
             </div>
           </CardHeader>
@@ -453,7 +657,7 @@ export function ReviewPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <div className="h-[200px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-justify text-sm leading-relaxed [scrollbar-width:none] hover:[scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5">
+              <div className="h-[200px] min-w-0 overflow-y-auto overflow-x-hidden break-words rounded-lg border bg-muted/50 p-4 text-justify text-sm leading-relaxed [overflow-wrap:anywhere] [scrollbar-width:none] hover:[scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5">
                 {currentQuestion.answer}
               </div>
             </div>
@@ -507,14 +711,17 @@ export function ReviewPage() {
               <Textarea
                 placeholder="Additional comments..."
                 value={currentState.comment}
-                onChange={(e) => setComment(currentQuestion.id, e.target.value)}
+                onChange={(e) =>
+                  setComment(currentQuestion.id, e.target.value)
+                }
                 className="min-h-[80px] resize-none"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex min-w-0 items-center gap-2 pt-2">
               <Button
                 variant="outline"
+                className="shrink-0"
                 onClick={goPrev}
                 disabled={selectedIndex === 0}
               >
@@ -522,13 +729,18 @@ export function ReviewPage() {
                 Previous
               </Button>
 
-              <div ref={dialRef} className="flex items-center gap-1 px-2">
+              <div
+                ref={dialRef}
+                className="flex min-h-10 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden px-1 py-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]"
+              >
                 {Array.from({ length: total }, (_, i) => {
                   const distance = Math.abs(i - selectedIndex)
                   const isActive = i === selectedIndex
                   return (
                     <button
                       key={i}
+                      ref={isActive ? activeDialButtonRef : undefined}
+                      type="button"
                       onClick={() => goTo(i)}
                       className={cn(
                         "flex size-8 shrink-0 cursor-pointer select-none items-center justify-center rounded-full text-sm font-medium transition-all duration-200",
@@ -551,6 +763,7 @@ export function ReviewPage() {
 
               <Button
                 variant="outline"
+                className="shrink-0"
                 onClick={goNext}
                 disabled={selectedIndex === total - 1}
               >

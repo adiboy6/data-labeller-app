@@ -68,11 +68,12 @@ model VerificationToken {
 }
 
 model Citation {
-  id        String     @id @default(cuid())
-  url       String     @unique
-  label     String
-  questions Question[]
-  createdAt DateTime   @default(now()) @map("created_at")
+  id               String     @id @default(cuid())
+  url              String     @unique
+  label            String
+  sourceMetadata   Json?      @map("source_metadata") @db.JsonB
+  questions        Question[]
+  createdAt        DateTime   @default(now()) @map("created_at")
 
   @@map("citations")
 }
