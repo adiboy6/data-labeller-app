@@ -55,8 +55,19 @@ export default async function DashboardPage() {
             next to the question title. (Note that this functionality might be disturbed by certain browser extensions).
           </li>
           <li className="mb-2">
-            <strong>Multiple choice questions</strong> may have more than one
-            correct answer.
+            <strong>Comments:</strong> Use the comments box to share context
+            about your decision, uncertainty, or any issue you notice in the
+            question or answer.
+          </li>
+          <li className="mb-2">
+            <strong>Metadata:</strong> Use the source metadata tooltip next to
+            the question title to inspect bibliographic details before
+            reviewing.
+          </li>
+          <li className="mb-2">
+            <strong>Answer/Evidence Explanation:</strong> Click the lightbulb
+            icon next to the answer label to open the explanation panel with
+            answer reasoning and evidence of answer generation.
           </li>
         </ul>
       </div>

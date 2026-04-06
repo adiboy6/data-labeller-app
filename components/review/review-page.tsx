@@ -634,7 +634,7 @@ export function ReviewPage() {
 
           <CardContent className="space-y-6">
             <div>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center gap-2">
                 <p className="text-sm font-medium">Answer</p>
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
@@ -649,8 +649,8 @@ export function ReviewPage() {
                         )}
                         onClick={() => setReasoningOpen((o) => !o)}
                       >
-                        <span className="text-sm font-medium">Show Explanation</span>
                         <Icons.lightbulb className="size-4" />
+                        <span className="sr-only">Show Explanation</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Show Explanation</TooltipContent>
