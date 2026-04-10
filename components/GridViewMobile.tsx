@@ -258,7 +258,7 @@ function Drawer({
           />
           <motion.div
             className={cn(
-              "absolute bottom-0 top-0 z-10 flex flex-col border-border bg-background shadow-2xl",
+              "absolute inset-y-0 z-10 flex flex-col border-border bg-background shadow-2xl",
               widthClass,
               side === "left" ? "left-0 border-r" : "right-0 border-l"
             )}
@@ -300,7 +300,7 @@ function SideNav({
           className="rounded-md p-2 text-foreground transition-colors hover:bg-accent"
           aria-label="Dashboard"
         >
-          <Home className="h-5 w-5" />
+          <Home className="size-5" />
         </a>
         <button
           onClick={onReset}
@@ -309,7 +309,7 @@ function SideNav({
           aria-label="Reset all reviews and go to first question"
           title="Reset all and return to first question"
         >
-          <RotateCcw className="h-5 w-5" />
+          <RotateCcw className="size-5" />
         </button>
         <button
           onClick={onSubmit}
@@ -318,7 +318,7 @@ function SideNav({
           aria-label="Submit all reviews"
           title={canSubmit ? "Submit all reviews" : "Review all questions to submit"}
         >
-          <Upload className="h-5 w-5" />
+          <Upload className="size-5" />
         </button>
       </div>
       <button
@@ -326,7 +326,7 @@ function SideNav({
         className="rounded-md p-2 text-foreground transition-colors hover:bg-accent"
         aria-label="Question status"
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="size-5" />
       </button>
     </aside>
   )
@@ -344,7 +344,7 @@ function ProgressBar({ reviewedCount, total, user }: ProgressBarProps) {
   const percent = total > 0 ? Math.round((reviewedCount / total) * 100) : 0
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-4 md:pl-16">
+    <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-4 md:pl-16">
       <div className="flex-1">
         <Progress value={percent} className="h-1.5 rounded-full" />
       </div>
@@ -388,7 +388,7 @@ function QACardContent({
                   className="inline-flex cursor-help rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Citation metadata"
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className="size-4" />
                 </button>
               </HoverCardTrigger>
               <HoverCardContent
@@ -410,7 +410,7 @@ function QACardContent({
               title="No source metadata available"
               className="inline-flex cursor-help text-muted-foreground"
             >
-              <Info className="h-4 w-4" />
+              <Info className="size-4" />
             </span>
           )}
           {question.category && (
@@ -437,7 +437,7 @@ function QACardContent({
             className="inline-flex items-center rounded-sm text-muted-foreground transition-colors hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Show Explanation"
           >
-            <Lightbulb className="h-4 w-4" />
+            <Lightbulb className="size-4" />
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -525,7 +525,7 @@ function QACardStack({
                   className="inline-flex items-center rounded-sm text-muted-foreground transition-colors hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Back to Q&A"
                 >
-                  <Lightbulb className="h-4 w-4" />
+                  <Lightbulb className="size-4" />
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -566,7 +566,7 @@ function FloatingDecisionButtons({
   onSubmit: () => void
 }) {
   return (
-    <div className="pointer-events-none fixed bottom-16 left-0 right-0 z-30 flex items-center justify-between gap-2 px-3 md:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 flex items-center justify-between gap-2 px-3 md:hidden">
       <button
         type="button"
         onClick={onDeny}
@@ -578,7 +578,7 @@ function FloatingDecisionButtons({
         )}
         aria-label="Deny current question"
       >
-        <X className="h-5 w-5" />
+        <X className="size-5" />
         Deny
       </button>
       {canSubmit ? (
@@ -602,7 +602,7 @@ function FloatingDecisionButtons({
         )}
         aria-label="Approve current question"
       >
-        <Check className="h-5 w-5" />
+        <Check className="size-5" />
         Approve
       </button>
     </div>
@@ -653,7 +653,7 @@ function QuestionStatusDrawer({
             className="rounded p-1 transition-colors hover:bg-accent"
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="size-5" />
           </button>
         </div>
       </div>
@@ -718,7 +718,7 @@ function CommentsTray({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "100%", opacity: 0 }}
           transition={{ duration: 0.24, ease: "easeOut" }}
-          className="fixed bottom-0 right-0 z-50 w-full max-h-[60vh] border border-white/10 bg-black/70 backdrop-blur-md shadow-2xl sm:bottom-4 sm:right-4 sm:w-[380px] sm:rounded-xl"
+          className="fixed bottom-0 right-0 z-50 max-h-[60vh] w-full border border-white/10 bg-black/70 shadow-2xl backdrop-blur-md sm:bottom-4 sm:right-4 sm:w-[380px] sm:rounded-xl"
         >
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <h2 className="text-sm font-semibold text-white/90">Comments</h2>
@@ -728,12 +728,12 @@ function CommentsTray({
               className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Close comments"
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
             </button>
           </div>
 
           <div className="flex h-full max-h-[calc(60vh-52px)] flex-col">
-            <ScrollArea className="flex-1 px-3 py-3">
+            <ScrollArea className="flex-1 p-3">
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false}>
                   {comments.map((item) => (
@@ -766,16 +766,16 @@ function CommentsTray({
                     }
                   }}
                   placeholder="Add a comment..."
-                  className="h-10 flex-1 rounded-md border border-white/15 bg-black/30 px-3 text-sm text-white placeholder:text-white/45 outline-none focus:border-white/35"
+                  className="h-10 flex-1 rounded-md border border-white/15 bg-black/30 px-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-white/35"
                 />
                 <button
                   type="button"
                   onClick={onSend}
                   disabled={!draft.trim()}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex size-10 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="Send comment"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="size-4" />
                 </button>
               </div>
             </div>
@@ -805,26 +805,26 @@ function BottomTabBar({ onOpenStatus, onOpenComments, user }: BottomTabBarProps)
     : "U"
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-20 flex h-14 items-center justify-around border-t border-border bg-background md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-20 flex h-14 items-center justify-around border-t border-border bg-background md:hidden">
       <a
         href="/dashboard"
         className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <Home className="h-5 w-5" />
+        <Home className="size-5" />
         Home
       </a>
       <button
         onClick={onOpenStatus}
         className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ClipboardList className="h-5 w-5" />
+        <ClipboardList className="size-5" />
         Questions
       </button>
       <button
         onClick={onOpenComments}
         className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <MessageSquare className="h-5 w-5" />
+        <MessageSquare className="size-5" />
         Reviews
       </button>
       <DropdownMenu>
@@ -834,7 +834,7 @@ function BottomTabBar({ onOpenStatus, onOpenComments, user }: BottomTabBarProps)
             className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
             aria-label="Open profile menu"
           >
-            <Avatar className="h-5 w-5">
+            <Avatar className="size-5">
               <AvatarImage src={user?.image ?? ""} alt={user?.name ?? "User"} />
               <AvatarFallback className="bg-muted text-[9px]">{initials}</AvatarFallback>
             </Avatar>
@@ -1077,7 +1077,7 @@ export default function GridView({ user }: GridViewProps) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <div className="size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
       </div>
     )
   }
@@ -1108,7 +1108,7 @@ export default function GridView({ user }: GridViewProps) {
       <ProgressBar reviewedCount={reviewedCount} total={total} user={user} />
 
       {/* Main — offset for fixed top bar (pt-12) + side nav (md:pl-14) + mobile tab bar (pb-14) */}
-      <main className="flex min-h-screen flex-col items-stretch justify-start pt-12 md:min-h-screen md:items-center md:justify-start md:px-4 md:pb-8 md:pt-20 md:pl-14">
+      <main className="flex min-h-screen flex-col items-stretch justify-start pt-12 md:min-h-screen md:items-center md:justify-start md:px-4 md:pb-8 md:pl-14 md:pt-20">
         <div className="flex w-full flex-col items-stretch md:flex-none md:items-center md:gap-2">
           {queueAtEnd ? (
             <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
