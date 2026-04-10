@@ -1,0 +1,1185 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useTransform,
+} from "framer-motion"
+import {
+  Check,
+  ClipboardList,
+  Home,
+  Info,
+  Lightbulb,
+  Menu,
+  MessageSquare,
+  RotateCcw,
+  Send,
+  Upload,
+  X,
+} from "lucide-react"
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
+import { Progress } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type ReviewStatus = "approved" | "rejected" | "pending"
+
+export interface ReviewQuestion {
+  id: string
+  question: string
+  answer: string
+  evidence: string
+  reasoning: string
+  category: string | null
+  citationId: string | null
+  citation: {
+    id: string
+    url: string
+    label: string
+    sourceMetadata: unknown | null
+  } | null
+}
+
+interface ReviewState {
+  status: ReviewStatus
+  comment: string
+}
+
+type ActiveDrawer = "status" | "comments" | null
+
+interface GridViewUser {
+  name?: string | null
+  image?: string | null
+  email?: string | null
+}
+
+type CommentItem = {
+  id: string
+  text: string
+}
+
+const COMMENT_DELIMITER = "\n"
+
+function parseCommentString(raw: string): CommentItem[] {
+  return raw
+    .split(COMMENT_DELIMITER)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((text, idx) => ({
+      id: `${idx}-${text.slice(0, 12)}`,
+      text,
+    }))
+}
+
+function joinComments(items: CommentItem[]): string {
+  return items
+    .map((c) => c.text.trim())
+    .filter(Boolean)
+    .join(COMMENT_DELIMITER)
+}
+
+function formatSourceMetadata(metadata: unknown): string {
+  if (metadata == null) return "No metadata available."
+  if (typeof metadata === "string") return metadata
+  try {
+    return JSON.stringify(metadata, null, 2)
+  } catch {
+    return String(metadata)
+  }
+}
+
+function humanizeMetadataKey(key: string): string {
+  return key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
+}
+
+function extractBibliographic(metadata: unknown): Record<string, unknown> | null {
+  if (metadata == null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null
+  }
+  const m = metadata as Record<string, unknown>
+  const bib = m.bibliographic
+  if (bib != null && typeof bib === "object" && !Array.isArray(bib)) {
+    return bib as Record<string, unknown>
+  }
+  return null
+}
+
+const BIBLIOGRAPHIC_FIELD_ORDER = ["title", "authors", "published_date"]
+
+function formatBibliographicValue(value: unknown): React.ReactNode {
+  if (value == null || value === "") return "—"
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "number") return String(value)
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—"
+    if (value.every((v) => typeof v === "string")) return value.join(", ")
+    return JSON.stringify(value)
+  }
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
+}
+
+function BibliographicMetadataView({ metadata }: { metadata: unknown }) {
+  const bib = extractBibliographic(metadata)
+  const entries =
+    bib != null
+      ? Object.entries(bib)
+          .filter(
+            ([k, v]) =>
+              BIBLIOGRAPHIC_FIELD_ORDER.includes(k) &&
+              v != null &&
+              v !== "" &&
+              !(Array.isArray(v) && v.length === 0)
+          )
+          .sort(
+            (a, b) =>
+              BIBLIOGRAPHIC_FIELD_ORDER.indexOf(a[0]) -
+              BIBLIOGRAPHIC_FIELD_ORDER.indexOf(b[0])
+          )
+      : []
+
+  if (entries.length === 0) {
+    return (
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+        {formatSourceMetadata(metadata)}
+      </pre>
+    )
+  }
+
+  return (
+    <dl className="space-y-2">
+      {entries.map(([key, value]) => (
+        <div
+          key={key}
+          className="grid gap-0.5 text-[11px] leading-snug sm:grid-cols-[minmax(0,7.5rem)_1fr] sm:gap-x-3"
+        >
+          <dt className="font-medium text-foreground">{humanizeMetadataKey(key)}</dt>
+          <dd className="min-w-0 break-words text-muted-foreground">
+            {formatBibliographicValue(value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+
+async function saveReviewToDb(
+  questionId: string,
+  response: ReviewStatus,
+  comments: string,
+  suppressErrorToast = false
+): Promise<boolean> {
+  try {
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ questionId, response, comments }),
+    })
+    if (!res.ok) {
+      // Show the specific API error; fall back to a generic message.
+      let message = "Failed to save review"
+      try {
+        const parsed = await res.json()
+        if (parsed?.error) message = parsed.error
+      } catch {}
+      if (!suppressErrorToast) {
+        toast({ title: message, variant: "destructive" })
+      }
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error("Failed to save review:", err)
+    if (!suppressErrorToast) {
+      toast({ title: "Network error — review not saved", variant: "destructive" })
+    }
+    return false
+  }
+}
+
+// ─── Drawer (shared primitive) ────────────────────────────────────────────────
+// Fixed overlay — never pushes layout. Backdrop uses backdrop-blur-sm + bg-black/50.
+
+interface DrawerProps {
+  open: boolean
+  onClose: () => void
+  side: "left" | "right"
+  widthClass?: string
+  children: React.ReactNode
+}
+
+function Drawer({
+  open,
+  onClose,
+  side,
+  widthClass = "w-full md:w-[35%]",
+  children,
+}: DrawerProps) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <div className="fixed inset-0 z-50">
+          <motion.div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+            aria-hidden="true"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          />
+          <motion.div
+            className={cn(
+              "absolute bottom-0 top-0 z-10 flex flex-col border-border bg-background shadow-2xl",
+              widthClass,
+              side === "left" ? "left-0 border-r" : "right-0 border-l"
+            )}
+            initial={{ x: side === "left" ? "-100%" : "100%", opacity: 0.95 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: side === "left" ? "-100%" : "100%", opacity: 0.95 }}
+            transition={{ duration: 0.28, ease: "easeInOut" }}
+          >
+            {children}
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  )
+}
+
+// ─── SideNav ──────────────────────────────────────────────────────────────────
+
+interface SideNavProps {
+  onOpenStatus: () => void
+  onReset: () => void
+  canReset: boolean
+  canSubmit: boolean
+  onSubmit: () => void
+}
+
+function SideNav({
+  onOpenStatus,
+  onReset,
+  canReset,
+  canSubmit,
+  onSubmit,
+}: SideNavProps) {
+  return (
+    <aside className="fixed left-0 top-0 z-20 hidden h-full w-14 flex-col items-center justify-between border-r border-border bg-background py-4 md:flex">
+      <div className="flex flex-col items-center gap-2">
+        <a
+          href="/dashboard"
+          className="rounded-md p-2 text-foreground transition-colors hover:bg-accent"
+          aria-label="Dashboard"
+        >
+          <Home className="h-5 w-5" />
+        </a>
+        <button
+          onClick={onReset}
+          disabled={!canReset}
+          className="rounded-md p-2 text-foreground transition-colors hover:bg-accent hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Reset all reviews and go to first question"
+          title="Reset all and return to first question"
+        >
+          <RotateCcw className="h-5 w-5" />
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          className="rounded-md p-2 text-foreground transition-colors hover:bg-accent hover:text-green-500 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Submit all reviews"
+          title={canSubmit ? "Submit all reviews" : "Review all questions to submit"}
+        >
+          <Upload className="h-5 w-5" />
+        </button>
+      </div>
+      <button
+        onClick={onOpenStatus}
+        className="rounded-md p-2 text-foreground transition-colors hover:bg-accent"
+        aria-label="Question status"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+    </aside>
+  )
+}
+
+// ─── ProgressBar ─────────────────────────────────────────────────────────────
+
+interface ProgressBarProps {
+  reviewedCount: number
+  total: number
+  user?: GridViewUser
+}
+
+function ProgressBar({ reviewedCount, total, user }: ProgressBarProps) {
+  const percent = total > 0 ? Math.round((reviewedCount / total) * 100) : 0
+
+  return (
+    <header className="fixed left-0 right-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-4 md:pl-16">
+      <div className="flex-1">
+        <Progress value={percent} className="h-1.5 rounded-full" />
+      </div>
+      <span className="whitespace-nowrap text-sm text-muted-foreground">
+        {reviewedCount}/{total}
+      </span>
+    </header>
+  )
+}
+
+// ─── QACard (static inner content) ────────────────────────────────────────────
+
+interface QACardContentProps {
+  question: ReviewQuestion
+  questionNumber: number
+  totalQuestions: number
+  onToggleExplanation: () => void
+}
+
+function QACardContent({
+  question,
+  questionNumber,
+  totalQuestions,
+  onToggleExplanation,
+}: QACardContentProps) {
+  return (
+    <>
+      <div className="max-h-[45%] overflow-y-auto border-b border-border p-5">
+        <div className="mb-2 flex items-center gap-1.5">
+          <span className="font-semibold">Question</span>
+          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {`${questionNumber} of ${totalQuestions}`}
+          </span>
+          {question.citation ? (
+            <HoverCard openDelay={150} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex cursor-help rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Citation metadata"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent
+                align="start"
+                className="w-[min(90vw,28rem)] border bg-popover p-3 text-xs"
+              >
+                <p className="mb-2 font-semibold text-foreground">Source metadata</p>
+                <p className="mb-2 break-all text-muted-foreground">
+                  <span className="font-medium text-foreground">Source:</span>{" "}
+                  {question.citation.label || question.citation.url}
+                </p>
+                <BibliographicMetadataView
+                  metadata={question.citation.sourceMetadata}
+                />
+              </HoverCardContent>
+            </HoverCard>
+          ) : (
+            <span
+              title="No source metadata available"
+              className="inline-flex cursor-help text-muted-foreground"
+            >
+              <Info className="h-4 w-4" />
+            </span>
+          )}
+          {question.category && (
+            <span className="ml-auto rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {question.category}
+            </span>
+          )}
+        </div>
+        <p className="text-[12pt] leading-relaxed text-foreground">
+          {question.question}
+        </p>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="font-semibold">Answer</span>
+          <button
+            type="button"
+            title="Show Explanation"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleExplanation()
+            }}
+            className="inline-flex items-center rounded-sm text-muted-foreground transition-colors hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Show Explanation"
+          >
+            <Lightbulb className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <p className="text-[12pt] leading-relaxed text-foreground">
+            {question.answer}
+          </p>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── QACardStack ───────────────────────────────────────────────────────────────
+
+const EXIT_DISTANCE = 460
+const EXIT_DURATION = 0.24
+
+interface QACardStackProps {
+  questions: ReviewQuestion[]
+  selectedIndex: number
+  onAdvance: () => void
+  onCommit: (questionId: string, status: ReviewStatus) => void
+  exitRequest: { key: number; direction: "approve" | "deny" } | null
+  onExitRequestHandled: () => void
+}
+
+function QACardStack({
+  questions,
+  selectedIndex,
+  onAdvance,
+  onCommit,
+  exitRequest,
+  onExitRequestHandled,
+}: QACardStackProps) {
+  const q = questions[selectedIndex]
+  const x = useMotionValue(0)
+  const rotate = useTransform(x, [-EXIT_DISTANCE, EXIT_DISTANCE], [-16, 16])
+  const [showExplanation, setShowExplanation] = useState(false)
+
+  useEffect(() => {
+    if (!q || !exitRequest) return
+    const targetX = exitRequest.direction === "approve" ? EXIT_DISTANCE : -EXIT_DISTANCE
+    void animate(x, targetX, { duration: EXIT_DURATION, ease: "easeInOut" }).then(() => {
+      onCommit(q.id, exitRequest.direction === "approve" ? "approved" : "rejected")
+      onAdvance()
+      x.set(0)
+      onExitRequestHandled()
+    })
+  }, [exitRequest?.key, q?.id, x, onAdvance, onCommit, onExitRequestHandled])
+
+  useEffect(() => {
+    x.set(0)
+    setShowExplanation(false)
+  }, [q?.id, x])
+
+  if (!q) return null
+
+  return (
+    <div className="relative h-[calc(100dvh-6.5rem)] w-full md:mx-auto md:h-[calc(100dvh-10rem)] md:min-h-[520px] md:w-3/4">
+      <div className="absolute inset-0">
+        <motion.div
+          style={{ x, rotate }}
+          className="relative h-full overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-md"
+        >
+          <motion.div
+            className="relative h-full [transform-style:preserve-3d]"
+            animate={{ rotateY: showExplanation ? 180 : 0 }}
+            transition={{ duration: 0.42, ease: "easeInOut" }}
+          >
+            <div className="absolute inset-0 [backface-visibility:hidden]">
+              <QACardContent
+                question={q}
+                questionNumber={selectedIndex + 1}
+                totalQuestions={questions.length}
+                onToggleExplanation={() => setShowExplanation(true)}
+              />
+            </div>
+            <div className="absolute inset-0 flex min-h-0 flex-col [backface-visibility:hidden] [transform:rotateY(180deg)]">
+              <div className="flex items-center justify-between border-b border-border p-5">
+                <h3 className="text-base font-semibold">Explanation</h3>
+                <button
+                  type="button"
+                  title="Back to Q&A"
+                  onClick={() => setShowExplanation(false)}
+                  className="inline-flex items-center rounded-sm text-muted-foreground transition-colors hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Back to Q&A"
+                >
+                  <Lightbulb className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Answer Reasoning</h4>
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                      {q.reasoning || "No reasoning provided."}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Evidence</h4>
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                      {q.evidence || "No evidence provided."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
+function FloatingDecisionButtons({
+  status,
+  canSubmit,
+  onApprove,
+  onDeny,
+  onSubmit,
+}: {
+  status: ReviewStatus
+  canSubmit: boolean
+  onApprove: () => void
+  onDeny: () => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="pointer-events-none fixed bottom-16 left-0 right-0 z-30 flex items-center justify-between gap-2 px-3 md:hidden">
+      <button
+        type="button"
+        onClick={onDeny}
+        className={cn(
+          "pointer-events-auto inline-flex h-14 min-w-[7.5rem] items-center justify-center gap-2 rounded-full border-2 px-4 text-sm font-semibold shadow-lg transition-colors",
+          status === "rejected"
+            ? "border-red-500 bg-red-500 text-white ring-2 ring-red-300"
+            : "border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20"
+        )}
+        aria-label="Deny current question"
+      >
+        <X className="h-5 w-5" />
+        Deny
+      </button>
+      {canSubmit ? (
+        <button
+          type="button"
+          onClick={onSubmit}
+          className="pointer-events-auto inline-flex h-12 min-w-[7.75rem] items-center justify-center rounded-full border border-blue-500 bg-blue-500/10 px-4 text-xs font-semibold text-blue-500 shadow-lg transition-colors hover:bg-blue-500/20"
+          aria-label="Submit responses"
+        >
+          Submit Responses
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onApprove}
+        className={cn(
+          "pointer-events-auto inline-flex h-14 min-w-[7.5rem] items-center justify-center gap-2 rounded-full border-2 px-4 text-sm font-semibold shadow-lg transition-colors",
+          status === "approved"
+            ? "border-green-500 bg-green-500 text-white ring-2 ring-green-300"
+            : "border-green-500 bg-green-500/10 text-green-500 hover:bg-green-500/20"
+        )}
+        aria-label="Approve current question"
+      >
+        <Check className="h-5 w-5" />
+        Approve
+      </button>
+    </div>
+  )
+}
+
+// ─── QuestionStatusDrawer ─────────────────────────────────────────────────────
+
+interface QuestionStatusDrawerProps {
+  open: boolean
+  onClose: () => void
+  onReset: () => void
+  questions: ReviewQuestion[]
+  reviewStates: Record<string, ReviewState>
+  selectedIndex: number
+  onSelect: (index: number) => void
+}
+
+function statusTextColor(status: ReviewStatus): string {
+  if (status === "approved") return "text-green-500"
+  if (status === "rejected") return "text-red-500"
+  return "text-muted-foreground"
+}
+
+function QuestionStatusDrawer({
+  open,
+  onClose,
+  onReset,
+  questions,
+  reviewStates,
+  selectedIndex,
+  onSelect,
+}: QuestionStatusDrawerProps) {
+  return (
+    <Drawer open={open} onClose={onClose} side="left" widthClass="w-full md:w-[35%]">
+      <div className="flex items-center justify-between border-b border-border p-4">
+        <h2 className="text-lg font-semibold">Question Status</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onReset}
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Reset all reviews"
+          >
+            Reset
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded p-1 transition-colors hover:bg-accent"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      <ScrollArea className="flex-1 p-4">
+        <ul className="space-y-3">
+          {questions.map((q, idx) => {
+            const status = reviewStates[q.id]?.status ?? "pending"
+            const isActive = idx === selectedIndex
+            const label =
+              q.question.length > 60 ? q.question.slice(0, 60) + "…" : q.question
+            return (
+              <li key={q.id}>
+                <button
+                  onClick={() => {
+                    onSelect(idx)
+                    onClose()
+                  }}
+                  className={cn(
+                    "w-full text-left text-sm leading-snug transition-colors hover:opacity-80",
+                    statusTextColor(status),
+                    isActive && "font-semibold"
+                  )}
+                >
+                  <span className="font-medium">{idx + 1}. </span>
+                  {label}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </ScrollArea>
+    </Drawer>
+  )
+}
+
+// ─── CommentsTray ─────────────────────────────────────────────────────────────
+// Floating bottom-right tray with upward-growing feed and bottom input.
+
+interface CommentsTrayProps {
+  open: boolean
+  comments: CommentItem[]
+  draft: string
+  onDraftChange: (val: string) => void
+  onSend: () => void
+  onClose: () => void
+}
+
+function CommentsTray({
+  open,
+  comments,
+  draft,
+  onDraftChange,
+  onSend,
+  onClose,
+}: CommentsTrayProps) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.aside
+          key="comments-tray"
+          initial={{ y: "100%", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: "100%", opacity: 0 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+          className="fixed bottom-0 right-0 z-50 w-full max-h-[60vh] border border-white/10 bg-black/70 backdrop-blur-md shadow-2xl sm:bottom-4 sm:right-4 sm:w-[380px] sm:rounded-xl"
+        >
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <h2 className="text-sm font-semibold text-white/90">Comments</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Close comments"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex h-full max-h-[calc(60vh-52px)] flex-col">
+            <ScrollArea className="flex-1 px-3 py-3">
+              <motion.ul layout className="space-y-2">
+                <AnimatePresence initial={false}>
+                  {comments.map((item) => (
+                    <motion.li
+                      key={item.id}
+                      layout
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -8, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="rounded-md bg-white/10 px-3 py-2 text-sm text-white/90"
+                    >
+                      {item.text}
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </motion.ul>
+            </ScrollArea>
+
+            <div className="border-t border-white/10 p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={draft}
+                  onChange={(e) => onDraftChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      onSend()
+                    }
+                  }}
+                  placeholder="Add a comment..."
+                  className="h-10 flex-1 rounded-md border border-white/15 bg-black/30 px-3 text-sm text-white placeholder:text-white/45 outline-none focus:border-white/35"
+                />
+                <button
+                  type="button"
+                  onClick={onSend}
+                  disabled={!draft.trim()}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Send comment"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.aside>
+      ) : null}
+    </AnimatePresence>
+  )
+}
+
+// ─── BottomTabBar ─────────────────────────────────────────────────────────────
+
+interface BottomTabBarProps {
+  onOpenStatus: () => void
+  onOpenComments: () => void
+  user?: GridViewUser
+}
+
+function BottomTabBar({ onOpenStatus, onOpenComments, user }: BottomTabBarProps) {
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "U"
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-20 flex h-14 items-center justify-around border-t border-border bg-background md:hidden">
+      <a
+        href="/dashboard"
+        className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Home className="h-5 w-5" />
+        Home
+      </a>
+      <button
+        onClick={onOpenStatus}
+        className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ClipboardList className="h-5 w-5" />
+        Questions
+      </button>
+      <button
+        onClick={onOpenComments}
+        className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <MessageSquare className="h-5 w-5" />
+        Reviews
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex flex-col items-center gap-0.5 px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Open profile menu"
+          >
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={user?.image ?? ""} alt={user?.name ?? "User"} />
+              <AvatarFallback className="bg-muted text-[9px]">{initials}</AvatarFallback>
+            </Avatar>
+            Profile
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem asChild>
+            <a href="/dashboard/settings">Profile</a>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <a href="/api/auth/signout">Logout</a>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </nav>
+  )
+}
+
+// ─── GridView (default export) ────────────────────────────────────────────────
+
+interface GridViewProps {
+  user?: GridViewUser
+}
+
+export default function GridView({ user }: GridViewProps) {
+  const [questions, setQuestions] = useState<ReviewQuestion[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [reviewStates, setReviewStates] = useState<Record<string, ReviewState>>({})
+  const [activeDrawer, setActiveDrawer] = useState<ActiveDrawer>(null)
+  const [commentDraft, setCommentDraft] = useState("")
+  const [pendingDecision, setPendingDecision] = useState<ReviewStatus | null>(null)
+  const [exitRequest, setExitRequest] = useState<{
+    key: number
+    direction: "approve" | "deny"
+  } | null>(null)
+  const decisionDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ref so debounced timers always see latest state without stale closure
+  const reviewStatesRef = useRef(reviewStates)
+  useEffect(() => {
+    reviewStatesRef.current = reviewStates
+  }, [reviewStates])
+
+
+  // ── Load questions + existing reviews on mount ──────────────────────────────
+  useEffect(() => {
+    async function load() {
+      try {
+        const [questionsRes, reviewsRes] = await Promise.all([
+          fetch("/api/questions", { credentials: "same-origin", cache: "no-store" }),
+          fetch("/api/reviews", { credentials: "same-origin" }),
+        ])
+
+        const questionsData: ReviewQuestion[] = await questionsRes.json()
+        const reviewsData: Array<{
+          questionId: string
+          response: string
+          comments: string | null
+        }> = reviewsRes.ok ? await reviewsRes.json() : []
+
+        setQuestions(questionsData)
+
+        const states: Record<string, ReviewState> = {}
+        for (const q of questionsData) {
+          const existing = reviewsData.find((r) => r.questionId === q.id)
+          states[q.id] = {
+            status: (existing?.response as ReviewStatus) ?? "pending",
+            comment: existing?.comments ?? "",
+          }
+        }
+        setReviewStates(states)
+      } catch {
+        toast({ title: "Failed to load questions", variant: "destructive" })
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  // ── Derived values ──────────────────────────────────────────────────────────
+  const total = questions.length
+  const currentQuestion = questions[selectedIndex]
+  const currentState = currentQuestion ? reviewStates[currentQuestion.id] : undefined
+  const reviewedCount = Object.values(reviewStates).filter(
+    (s) => s.status !== "pending"
+  ).length
+  const allReviewed = total > 0 && reviewedCount === total
+  const queueAtEnd = total > 0 && selectedIndex >= total
+
+  useEffect(() => {
+    if (queueAtEnd) setActiveDrawer(null)
+  }, [queueAtEnd])
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  function setStatus(id: string, next: ReviewStatus) {
+    setReviewStates((prev) => ({ ...prev, [id]: { ...prev[id], status: next } }))
+    const comment = reviewStatesRef.current[id]?.comment ?? ""
+    saveReviewToDb(id, next, comment)
+  }
+
+  function handleApprove() {
+    if (!currentQuestion || queueAtEnd || exitRequest || pendingDecision) return
+    setPendingDecision("approved")
+    decisionDelayRef.current = setTimeout(() => {
+      setExitRequest({ key: Date.now(), direction: "approve" })
+    }, 140)
+  }
+
+  function handleDeny() {
+    if (!currentQuestion || queueAtEnd || exitRequest || pendingDecision) return
+    setPendingDecision("rejected")
+    decisionDelayRef.current = setTimeout(() => {
+      setExitRequest({ key: Date.now(), direction: "deny" })
+    }, 140)
+  }
+
+  async function saveReviewWithRetry(
+    questionId: string,
+    response: ReviewStatus,
+    comments: string
+  ) {
+    const first = await saveReviewToDb(questionId, response, comments, true)
+    if (first) return true
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    return saveReviewToDb(questionId, response, comments, true)
+  }
+
+  function appendComment(questionId: string, text: string) {
+    const clean = text.trim()
+    if (!clean) return
+
+    const prevItems = parseCommentString(
+      reviewStatesRef.current[questionId]?.comment ?? ""
+    )
+    const nextItems: CommentItem[] = [
+      ...prevItems,
+      { id: `${Date.now()}`, text: clean },
+    ]
+    const joined = joinComments(nextItems)
+    const status = reviewStatesRef.current[questionId]?.status ?? "pending"
+
+    setReviewStates((prev) => ({
+      ...prev,
+      [questionId]: { ...prev[questionId], comment: joined },
+    }))
+    saveReviewToDb(questionId, status, joined)
+  }
+
+  async function handleReset() {
+    const resetStates: Record<string, ReviewState> = {}
+    const savePromises: Promise<boolean>[] = []
+
+    for (const q of questions) {
+      resetStates[q.id] = { status: "pending", comment: "" }
+      savePromises.push(saveReviewWithRetry(q.id, "pending", ""))
+    }
+
+    setReviewStates(resetStates)
+    setSelectedIndex(0)
+    setActiveDrawer(null)
+    setCommentDraft("")
+    setPendingDecision(null)
+    setExitRequest(null)
+    if (decisionDelayRef.current) {
+      clearTimeout(decisionDelayRef.current)
+      decisionDelayRef.current = null
+    }
+
+    const results = await Promise.all(savePromises)
+    const failedCount = results.filter((ok) => !ok).length
+    if (failedCount === 0) {
+      toast({ description: "All reviews reset. Back to question 1." })
+    } else {
+      toast({
+        title: "Some resets failed",
+        description: `${failedCount} item(s) could not be reset. Please retry once.`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  async function handleSubmit() {
+    const latest = reviewStatesRef.current
+    const results = await Promise.all(
+      questions.map((q) => {
+        const s = latest[q.id]
+        return saveReviewWithRetry(
+          q.id,
+          s?.status ?? "pending",
+          s?.comment ?? ""
+        )
+      })
+    )
+    const failedCount = results.filter((ok) => !ok).length
+    if (failedCount === 0) {
+      toast({ description: "All reviews submitted!" })
+    } else {
+      toast({
+        title: "Some reviews failed to save",
+        description: `${failedCount} item(s) did not save. Please submit again.`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const openStatus = () => setActiveDrawer("status")
+  const openComments = () => {
+    if (queueAtEnd || !questions[selectedIndex]) return
+    setActiveDrawer((prev) => (prev === "comments" ? null : "comments"))
+  }
+  const closeDrawer = () => setActiveDrawer(null)
+
+  const currentComments = currentState
+    ? parseCommentString(currentState.comment)
+    : []
+
+  useEffect(() => {
+    setCommentDraft("")
+  }, [currentQuestion?.id, activeDrawer])
+
+  useEffect(() => {
+    setPendingDecision(null)
+  }, [currentQuestion?.id])
+
+  useEffect(() => {
+    return () => {
+      if (decisionDelayRef.current) {
+        clearTimeout(decisionDelayRef.current)
+      }
+    }
+  }, [])
+
+  // ── Loading / empty states ──────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (total === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+        <p className="text-muted-foreground">No questions available.</p>
+        <a href="/dashboard" className="text-sm text-primary hover:underline">
+          Back to dashboard
+        </a>
+      </div>
+    )
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <SideNav
+        onOpenStatus={openStatus}
+        onReset={handleReset}
+        canReset={questions.length > 0}
+        canSubmit={allReviewed}
+        onSubmit={handleSubmit}
+      />
+
+      <ProgressBar reviewedCount={reviewedCount} total={total} user={user} />
+
+      {/* Main — offset for fixed top bar (pt-12) + side nav (md:pl-14) + mobile tab bar (pb-14) */}
+      <main className="flex min-h-screen flex-col items-stretch justify-start pt-12 md:min-h-screen md:items-center md:justify-start md:px-4 md:pb-8 md:pt-20 md:pl-14">
+        <div className="flex w-full flex-col items-stretch md:flex-none md:items-center md:gap-2">
+          {queueAtEnd ? (
+            <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+              <p className="text-foreground">
+                You&apos;ve reached the end of the queue.
+              </p>
+              <p>
+                Use the back control or the question list to return to earlier
+                items.
+              </p>
+            </div>
+          ) : (
+            <>
+              <QACardStack
+                questions={questions}
+                selectedIndex={selectedIndex}
+                onAdvance={() =>
+                  setSelectedIndex((i) => Math.min(i + 1, questions.length))
+                }
+                onCommit={(id, status) => setStatus(id, status)}
+                exitRequest={exitRequest}
+                onExitRequestHandled={() => {
+                  setExitRequest(null)
+                  setPendingDecision(null)
+                  if (decisionDelayRef.current) {
+                    clearTimeout(decisionDelayRef.current)
+                    decisionDelayRef.current = null
+                  }
+                }}
+              />
+            </>
+          )}
+        </div>
+      </main>
+
+      {currentQuestion && currentState && !queueAtEnd ? (
+        <FloatingDecisionButtons
+          status={pendingDecision ?? currentState.status}
+          canSubmit={allReviewed}
+          onApprove={handleApprove}
+          onDeny={handleDeny}
+          onSubmit={handleSubmit}
+        />
+      ) : null}
+
+      <BottomTabBar onOpenStatus={openStatus} onOpenComments={openComments} user={user} />
+
+      <QuestionStatusDrawer
+        open={activeDrawer === "status"}
+        onClose={closeDrawer}
+        onReset={handleReset}
+        questions={questions}
+        reviewStates={reviewStates}
+        selectedIndex={Math.min(selectedIndex, total - 1)}
+        onSelect={setSelectedIndex}
+      />
+      {currentQuestion && currentState ? (
+        <>
+          <CommentsTray
+            open={activeDrawer === "comments"}
+            onClose={closeDrawer}
+            comments={currentComments}
+            draft={commentDraft}
+            onDraftChange={setCommentDraft}
+            onSend={() => {
+              appendComment(currentQuestion.id, commentDraft)
+              setCommentDraft("")
+            }}
+          />
+        </>
+      ) : null}
+    </div>
+  )
+}

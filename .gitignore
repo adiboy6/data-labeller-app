@@ -44,3 +44,7 @@ pscale_dump_chembench_main_20240418_174855
 /.pnpm-store/**
 /.husky/*
 pnpm-lock.yaml
+
+Dataset_QA.jsonl
+Dataset_QA_new.jsonl
+package-lock.json
